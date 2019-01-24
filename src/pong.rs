@@ -28,6 +28,7 @@ use amethyst::{
 };
 use nalgebra::{ Vector2, Isometry2 };
 use std::ops::DerefMut;
+use nphysics2d::volumetric::volumetric::Volumetric;
 
 pub const ARENA_HEIGHT: f32 = 100.0;
 pub const ARENA_WIDTH: f32 = 100.0;
@@ -42,12 +43,12 @@ impl SimpleState for Pong {
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
         let world = data.world;
         let mut physics_world = nphysics2d::world::World::<f32>::new();
-        physics_world.set_gravity(Vector2::y() * -9.81);
-        world.add_resource(physics_world);
+        physics_world.set_gravity(Vector2::y() * -1.0);
         let sprite_sheet_handle = load_sprite_sheet(world);
         initialise_paddles(world, sprite_sheet_handle.clone());
-        initialise_ball(world, sprite_sheet_handle);
+        initialise_ball(world, &mut physics_world, sprite_sheet_handle);
         initialise_camera(world);
+        world.add_resource(physics_world);
     }
 
     fn fixed_update(&mut self, data: StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
@@ -102,18 +103,10 @@ fn initialise_paddles(world: &mut World, sprite_sheet: SpriteSheetHandle) {
 }
 
 fn initialise_ball(world: &mut World,
+                   physics_world: &mut nphysics2d::world::World<f32>,
                    sprite_sheet: SpriteSheetHandle) {
     let mut transform = Transform::default();
-    let rigid_body = {
-        let mut physics_world = world.write_resource::<nphysics2d::world::World<f32>>();
-        RigidBody2D {
-            handle: physics_world.add_rigid_body(
-                Isometry2::<f32>::new(Vector2::new(0.0, 0.0), 0.0),
-                nphysics2d::algebra::Inertia2::new(0.0, 0.0),
-                nalgebra::Point::origin()
-            )
-        }
-    };
+    let rigid_body = RigidBody2D::new(physics_world);
 
     transform.set_xyz(ARENA_HEIGHT / 2.0_, ARENA_WIDTH / 2.0, 0.0);
 
@@ -194,13 +187,18 @@ pub struct RigidBody2D {
 }
 
 impl RigidBody2D {
-    fn new(world: &mut nphysics2d::world::World<f32>) -> RigidBody2D {
+    fn new(world: &mut nphysics2d::world::World<f32>, x: f32, y: f32) -> RigidBody2D {
+        let position = Vector2::new(x, y);
+        let cuboid = ncollide2d::shape::ShapeHandle::new(ncollide2d::shape::Cuboid::new(Vector2(1.0, 2.0)));
+        let local_inertia = cuboid.inertia(1.0);
+        let local_center_of_mass = cuboid.center_of_mass();
+        let rigid_body_handle = world.add_rigid_body(
+            nphysics2d::math::Isometry::new(position, nalgebra::zero()),
+            local_inertia,
+            local_center_of_mass,
+        );
         RigidBody2D {
-            handle: world.add_rigid_body(
-                Isometry2::<f32>::new(Vector2::new(0.0, 0.0), 0.0),
-                nphysics2d::algebra::Inertia2::new(0.0, 0.0),
-                nalgebra::Point::origin()
-            )
+            handle: rigid_body_handle
         }
     }
 }
@@ -209,10 +207,10 @@ impl Component for RigidBody2D {
     type Storage = DenseVecStorage<Self>;
 }
 
-pub enum Collider {
-    Sphere(f32),
-}
-
-impl Component for Collider {
-    type Storage = DenseVecStorage<Self>;
-}
+//pub enum Collider {
+//    Sphere(f32),
+//}
+//
+//impl Component for Collider {
+//    type Storage = DenseVecStorage<Self>;
+//}

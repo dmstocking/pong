@@ -20,6 +20,7 @@ impl<'s> System<'s> for PhysicsSystem {
         for (transform, rigidBody) in (&mut transforms, &rigidBodies).join() {
             if let Some(body) = physics_world.rigid_body(rigidBody.handle) {
                 let pos = body.position().translation.vector;
+//                println!("{:?}", pos);
                 transform.set_xyz(pos.x, pos.y, 0.0);
             }
         }
